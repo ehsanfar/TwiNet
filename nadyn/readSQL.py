@@ -21,7 +21,7 @@ d = dirname(dirname(abspath(__file__))) + '/dataset/'
 conn1 = pymysql.connect(host='localhost',
                              user='root',
                              password='1574',
-                             db='ehsan_new_updated',
+                             db='ehsan',
                              charset='utf8mb4',
                              cursorclass=pymysql.cursors.DictCursor)
 
@@ -362,7 +362,8 @@ def createStatusTokenTable():
                                                         'textlength int',
                                                      'PRIMARY KEY (id)',
                                                         )
-    sql_read = "Select created_at, id, user_id, text from statuses where created_at> now()- interval %d day order by created_at desc"%interval
+    sql_read = "Select created_at, id, user_id, text from statuses where created_at> now()- interval %d day"%interval
+    sql_read_ids = "select id from statustokens"
     # value = [61245423, 5123412343124, 'this that']
     # sql_insert = "INSERT INTO statustokens values (%(id)d, %(user_id)d, '%(tokens)s');"
 
@@ -371,7 +372,7 @@ def createStatusTokenTable():
                     "VALUES (%s, %s, %s, %s, %s)"
                  )
 
-    row_exists = "SELECT COUNT(1) FROM statustokens WHERE id = %s)"
+    row_exists = "SELECT COUNT(*) FROM statustokens WHERE id = %s"
     # add_value = {'db_name': 'statustokens', 'id': 61245423, 'user_id': 5123412343124, 'tokens': 'this that'}
     # add_value = (str(61245423), str(5123412343124), 'this that')
 
@@ -382,6 +383,12 @@ def createStatusTokenTable():
         # cursor2.execute(sql_drop)
         # cursor2.execute(sql_cr)
         # conn2.commit()
+        cursor2.execute(sql_read_ids)
+        result = cursor2.fetchall()
+        ids = set([])
+        for r in result:
+            ids.add(r['id'])
+
         cursor1.execute(sql_read)
         result = cursor1.fetchall()
         for i, r in enumerate(result):
@@ -393,25 +400,23 @@ def createStatusTokenTable():
             # cursor.execute(sql_cr)
             # drop a row
             # sql_delrow = "DELETE FROM statustokens WHERE id = %s" %str(r['id'])
-            sql_rowexists = row_exists%str(r['id'])
             # cursor2.execute(sql_delrow)
             # # print(sql_rowexists)
-            # ifrowexists = cursor2.execute(sql_rowexists).fetchone()[0]
-            # if ifrowexists:
-            #     print("Already exists: ", i, r, ifrowexists)
-            #     continue
+            if r['id'] in ids:
+                print("Already exists: ", i, r['id'])
+                continue
 
             text = r['text'].lower()
             add_row = (r['created_at'], r['id'], r['user_id'], tokenizeText(text), len(text))
-            # if add_row[3]:
-            #     cursor2.execute(add_token, add_row)
-            #     # print(i, add_row)
-            #     # conn2.commit()
+            if add_row[3]:
+                cursor2.execute(add_token, add_row)
+                # print(i, add_row)
+                # conn2.commit()
             #
-            # if i %100 == 0:
-            #     conn2.commit()
-            #     # print(text)
-            #     print(i, add_row)
+            if i %100 == 0:
+                conn2.commit()
+                # print(text)
+                print(i, add_row)
 
 
         conn2.commit()
@@ -422,10 +427,10 @@ def createStatusTokenTable():
 def createUserActivityTable():
     global conn1, conn2, interval
 
-    sql_drop = "DROP TABLE IF EXISTS useractivity"
+    sql_drop = "DROP TABLE IF EXISTS useractivity2000"
 
     # conn1.execute(sql)
-    sql_createuser = "CREATE TABLE %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"%('useractivity',
+    sql_createuser = "CREATE TABLE %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"%('useractivity2000',
                                                          'user_id bigint(20)',
                                                         'screen_name varchar(50)',
                                                         'followers_count int',
@@ -435,20 +440,19 @@ def createUserActivityTable():
                                                              'retweets_count int',
                                                              'replies_count int',
                                                                          'links_count int',
-                                                                     'favorites_count int',
                                                                              'text_median_length int',
                                                                              'url boolean',
                                                                                      'PRIMARY KEY (user_id)'
                                                         )
-    sql_read_statuses = "Select created_at, id, user_id, text from statuses where created_at> now()- interval %d day"%interval
+    sql_read_statuses = "Select created_at, id, user_id, text from statuses where created_at> now()- interval %d day"%(interval)
     sql_read_users = "Select screen_name, id, followers_count, friends_count, statuses_count, favourites_count, url from users"
 
     # value = [61245423, 5123412343124, 'this that']
     # sql_insert = "INSERT INTO statustokens values (%(id)d, %(user_id)d, '%(tokens)s');"
 
-    add_user_query = ("INSERT INTO useractivity"
-                    "(user_id, screen_name, followers_count, followees_count, firsttweettime, statuses_count, retweets_count, replies_count, links_count, favorites_count, text_median_length, url)"
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    add_user_query = ("INSERT INTO useractivity2000"
+                    "(user_id, screen_name, followers_count, followees_count, firsttweettime, statuses_count, retweets_count, replies_count, links_count, text_median_length, url)"
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                  )
     # add_value = {'db_name': 'statustokens', 'id': 61245423, 'user_id': 5123412343124, 'tokens': 'this that'}
     # add_value = (str(61245423), str(5123412343124), 'this that')
@@ -496,8 +500,9 @@ def createUserActivityTable():
             # if text.startswith('RT @'):
             #     continue
             # print(text)
-
+        print("length of userid first tweet vs length list:", len(userid_fisttweettime_dict), len(userid_lengthlist_dict))
         userid_medianlength_dict = {userid: statistics.median(l) if l else 0 for userid, l in userid_lengthlist_dict.items()}
+        userid_medianlength_dict = defaultdict(int, userid_medianlength_dict.items())
 
     with conn1.cursor() as cursor2, conn2.cursor() as cursor3:
         cursor3.execute(sql_drop)
@@ -509,7 +514,7 @@ def createUserActivityTable():
             userid_followerscount_dict[r2['id']] = r2['followers_count']
             userid_followeescount_dict[r2['id']] = r2['friends_count']
             # userid_statusescount_dict[r2['id']] = r2['statuses_count']
-            userid_favoritecount_dict[r2['id']] = r2['favourites_count']
+            # userid_favoritecount_dict[r2['id']] = r2['favourites_count']
             if r2['url']:
                 userid_url_dict[r2['id']] = True
 
@@ -519,7 +524,7 @@ def createUserActivityTable():
                        userid_followeescount_dict[uid], userid_fisttweettime_dict[uid],
                        userid_statusescount_dict[uid], userid_retcount_dict[uid],
                        userid_repcount_dict[uid], userid_linkcount_dict[uid],
-                       userid_favoritecount_dict[uid], userid_medianlength_dict[uid],
+                       userid_medianlength_dict[uid],
                        userid_url_dict[uid])
             # cursor.execute(sql)
             # cursor.execute(sql_cr)
@@ -541,12 +546,12 @@ def saveUSERCSV():
         return c.fetchall()
 
     cols = []
-    for item in execute(c, "show columns from useractivity"):
+    for item in execute(c, "show columns from useractivity2000"):
         print(item)
         cols.append(item['Field'])
 
     toCSV = []
-    sql_read_user = "SELECT * from useractivity"
+    sql_read_user = "SELECT * from useractivity2000"
     data = execute(c, sql_read_user)
     for row in data:
         print(type(row))
@@ -554,7 +559,7 @@ def saveUSERCSV():
 
     keys = list(toCSV[0].keys())
     print(keys)
-    with open(d + 'useractivity.csv', 'w') as output_file:
+    with open(d + 'useractivity2000.csv', 'w') as output_file:
         dict_writer = csv.DictWriter(output_file, keys)
         dict_writer.writeheader()
         dict_writer.writerows(toCSV)
@@ -568,7 +573,7 @@ def saveUSERCSV():
 # example = "@EsotericCD Though I'm still a snob who can't really handle regional accents. It's what happens when you partially grew up in Surrey."
 # print(example)
 # print(tokenizeText(example))#'RT @OurFamilyWorld: Leasing the car of your dreams is literally as easy as 1-2-3 with @HonckerCars! Check out these top 5 reasons why! #ad)
-createStatusTokenTable()
+# createStatusTokenTable()
 # createUserActivityTable()
 
 # saveUSERCSV()
